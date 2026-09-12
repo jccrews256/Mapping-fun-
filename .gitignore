@@ -1,0 +1,5 @@
+# cached downloads (Overture parquet, FEMA NFHL) - re-created by the script
+data/
+# large derived layers
+output/*.gpkg
+__pycache__/
