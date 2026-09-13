@@ -9,3 +9,4 @@ networkx>=3.3
 scipy>=1.13
 requests>=2.31
 matplotlib>=3.8
+rasterio>=1.4
