@@ -57,6 +57,13 @@ untagged low-water crossings).
 
 ## Running it
 
+**In Colab:** open `colab_run_flood_er.ipynb` (File → Open notebook → GitHub, paste the repo URL,
+pick this branch). It clones the branch, installs the stack, checks FEMA's service, runs the default
+scenario and three sensitivity scenarios into `output/<scenario>/`, shows the tables and maps, and
+zips the results. Output directories are set with `--out`.
+
+**Locally:**
+
 ```bash
 pip install -r requirements.txt
 python flood_er_travel_time.py                      # pulls NFHL from FEMA's REST service, DEM from USGS S3

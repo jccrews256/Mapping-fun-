@@ -79,6 +79,7 @@ parser.add_argument("--passable-depth", type=float, default=0.15,
 parser.add_argument("--closure-rule", choices=["depth", "2d"], default="depth",
                     help="depth: close where water depth >= --passable-depth; 2d: close every edge touching the floodplain")
 parser.add_argument("--bridges-passable", action="store_true", help="never close edges flagged as bridges")
+parser.add_argument("--out", default="output", help="output directory (use one per scenario)")
 args = parser.parse_args()
 
 RELEASE = args.release
@@ -96,10 +97,10 @@ ROAD_BUFFER_M = 35_000             # pull roads/ERs this far beyond the county l
 BFE_MAX_DIST_M = 1500              # a BFE line / cross-section further than this is another reach
 EDGE_K = 8                         # floodplain-edge vertices averaged for an inferred water surface
 DATA_DIR = Path("data")
-OUT_DIR = Path("output")
+OUT_DIR = Path(args.out)
 DEM_DIR = DATA_DIR / "dem"
 DATA_DIR.mkdir(exist_ok=True)
-OUT_DIR.mkdir(exist_ok=True)
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 DEM_DIR.mkdir(exist_ok=True)
 NFHL_URL = "https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer"
 DEM_URL = "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/13/TIFF/current/{tile}/USGS_13_{tile}.tif"
@@ -400,8 +401,11 @@ for key, (local_name, rest_name, where, fields) in NFHL_LAYERS.items():
     else:
         if rest_layer_ids is None:
             svc = requests.get(NFHL_URL, params={"f": "json"}, timeout=120).json()
-            rest_layer_ids = {l["name"]: l["id"] for l in svc["layers"]}
-        url = f"{NFHL_URL}/{rest_layer_ids[rest_name]}/query"
+            rest_layer_ids = pd.Series({l["id"]: l["name"] for l in svc["layers"]})
+        match = rest_layer_ids[rest_layer_ids.str.lower().str.replace(r"[^a-z]", "", regex=True)
+                               == rest_name.lower().replace("-", "").replace(" ", "")]
+        assert len(match), f"NFHL service has no layer named '{rest_name}'. Layers:\n" + rest_layer_ids.to_string()
+        url = f"{NFHL_URL}/{match.index[0]}/query"
         params = {"where": where, "geometry": f"{W},{S},{E},{N}", "geometryType": "esriGeometryEnvelope",
                   "inSR": 4326, "outSR": 4326, "spatialRel": "esriSpatialRelIntersects", "outFields": fields,
                   "returnGeometry": "true", "geometryPrecision": 6, "f": "geojson",
@@ -413,11 +417,13 @@ for key, (local_name, rest_name, where, fields) in NFHL_LAYERS.items():
             js = r.json()
             if "error" in js:
                 raise RuntimeError(json.dumps(js["error"]))
-            features += js.get("features", [])
+            page = js.get("features", [])
+            features += page
             print(f"  NFHL {rest_name}: {len(features):,} features so far")
-            if not js.get("features") or not js.get("properties", {}).get("exceededTransferLimit", False):
+            more = (js.get("properties") or {}).get("exceededTransferLimit", False) or len(page) >= params["resultRecordCount"]
+            if not page or not more:
                 break
-            params["resultOffset"] += len(js["features"])
+            params["resultOffset"] += len(page)
         lyr = gpd.GeoDataFrame.from_features(features, crs="EPSG:4326") if features else gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
         lyr.to_file(cache, driver="GPKG")
         source = url

@@ -1,5 +1,7 @@
-# cached downloads (Overture parquet, FEMA NFHL) - re-created by the script
+# cached downloads (Overture parquet, FEMA NFHL, DEM tiles) - re-created by the script
 data/
 # large derived layers
-output/*.gpkg
+output/**/*.gpkg
+output/**/*.parquet
 __pycache__/
+.ipynb_checkpoints/
